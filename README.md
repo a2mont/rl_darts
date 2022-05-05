@@ -4,9 +4,9 @@
 
 ### Ideas
 
-- [] Different player skill levels : The best shot might be too difficult and one should adapt
-- [] Render the environment
-- [] ...
+- [ ] Different player skill levels : The best shot might be too difficult and one should adapt
+- [ ] Render the environment
+- [ ] ...
 
 ## Sources
 
