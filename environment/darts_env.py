@@ -9,13 +9,16 @@ DEFAULT_BOARD = [[3, 1, 2, 1]*20, [1, 1, 1, 1], [1, 1, 1, 1]]
 
 N_CELLS = 20*4 + 2
 
+INITIAL_SCORE = 501
+
 
 class DartsEnv(gym.Env):
 
-    def __init__(self):
+    def __init__(self, n_players):
 
         # Stores thrown darts' positions
         self.darts_positions = [0]*N_CELLS
+        self.players_score = [INITIAL_SCORE] * n_players
 
         # Action: Choose one of the
         self.action_space = spaces.Discrete(N_CELLS)
@@ -31,6 +34,7 @@ class DartsEnv(gym.Env):
     def reset(self):
         # Reset the state of the environment to an initial state
         self.darts_positions = [0]*N_CELLS
+        self.players_score = [INITIAL_SCORE for _ in self.players_score]
 
     def render(self, mode='human', close=False):
         # Render the environment to the screen
