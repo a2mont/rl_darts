@@ -1,0 +1,23 @@
+Proposal
+1. Boris Mottet and Antoine Demont
+2. We want to create a gym environment to play darts and then create an algorithm to find the best set of actions to win the game.
+3. We can model this with a MDP, where the state is your current score and the actions are the number you are targetting. The smaller the real surface, for example a triple, the higher the possiblity to miss and actually hit a neighboring score. The agent then has to balance between taking risky actions and actually redcucing its score to 0, which is the goal of a dart game. One other key aspect is that players have to reach exactly the score of 0. Maybe this can be manipulated earlier to have easier final throws rather than having to hit a series of complicated shots to win the game. Darts also have the advantage that it can easily be modeled in a discrete environment. We can also take into account the number of darts thrown by a player and reflect this on the actual probability of succeeding. For example, hitting a triple is one of the hardest shot but it is even harder when a dart is already at this spot.
+4. We might want to use Sarsa, or a variant of it, since it might be interesting for an agent to have an idea of its future states.
+5. Make differently parametrized agents compete against each other, and see who wins. This experiment could also be led at different learning states to see who learns the quickest and who at a later stage is the best on average.
+6. We then can see the best set of parameters for different applications. For example, if we want to be ok quickly or simply be the best regardless of the time it takes.
+
+Litteracy research (Ongoing):
+
+- Graham Baird (2020) Optimising darts strategy using Markov decision processes and reinforcement learning, Journal of the Operational Research Society, 71:6, 1020-1037, DOI: 10.1080/01605682.2019.1610341 (https://www.tandfonline.com/doi/full/10.1080/01605682.2019.1610341?scroll=top&needAccess=true, I could not access it but it looks intersting)
+- Baird, Graham. “(Not) Throwing the Game - An Application of Markov Decision Processes and Reinforcement Learning to Optimising Darts Strategy.” OSF, 17 May 2018. Web (https://engrxiv.org/preprint/view/218)
+
+
+Teacher Feedback
+
+OK. though I suspect that the state should normally include where the other darts are. You might want to consider how bad an agent performs if the underlying simulation has this dependency, but your agent only considers the score (and potentially the scores of the other players). Then this would be an exercise in analysing the effects of partial observability.
+
+Some agents could see just their score, everbody's scores, the number of darts in each location, or even an approximate location on the board for each dart, perhaps represented through a 2D image.
+
+Are the actions just the target number? Would the agent target the exact middle of each number?
+
+Would the agent suggest which number to play to a specific player? Maybe some players are better than others and the agent could suggest different things to play depending ont he quality of the player. If so, then how can it estimate the player's quality?
