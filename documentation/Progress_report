@@ -1,0 +1,7 @@
+Progress Report
+
+Boris Mottet and Antoine Demont
+
+We started to implement the environment. We would like to include the position of the darts on the board as an effect on the accuracy for following darts. 
+
+As the environment is not complete, we didn't start implementing the algorithm but we are exploring some options. Should the reward be continuous (the number of points scored by a throw) or sparse (did we win or not) ? This could encourage the agent to better setup for the end game. Indeed, it is better to start a turn with a score of 16 than a score of 17 because the winning throw must be on a double or triple area and we would like the agent to consider such positionning.

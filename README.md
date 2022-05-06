@@ -8,6 +8,14 @@
 - [ ] Render the environment
 - [ ] ...
 
+## Algorithm
+
+### Ideas
+
+- [ ] Use multiple simple algorithms
+- [ ] Implement the curiosity-driven algorithm
+- [ ] ...
+
 ## Sources
 
 ### Papers
@@ -20,3 +28,4 @@
 - https://github.com/openai/gym : Openai documentation
 - https://medium.com/analytics-vidhya/grid-a-grid-world-environment-based-on-openai-gym-725189dcada6
 - https://github.com/genyrosk/gym-chess/blob/master/gym_chess/envs/chess_v2.py : Chess environment (how to read a board)
+
