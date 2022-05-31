@@ -44,7 +44,7 @@ SHOTS_RANGE = 10  # Range of shots selected to calculate the best shot
 
 class DartsEnv(gym.Env):
 
-    def __init__(self, n_players=1, player_level=None, seed=None):
+    def __init__(self, n_players=1, players_level=None, seed=None):
 
         if seed is not None:
             random.seed(seed)
@@ -52,12 +52,12 @@ class DartsEnv(gym.Env):
         self.players_score = [INITIAL_SCORE] * n_players
         self.board = create_board()
         self.shot_left = SHOTS_PER_TURN
-        if player_level is None:
+        if players_level is None:
             self.players_level = [2 for _ in range(n_players)]
         else:
             assert n_players == len(
-                player_level), "Size of players and players levels should be the same"
-            self.players_level = player_level
+                players_level), "Size of players and players levels should be the same"
+            self.players_level = players_level
 
         # Action: Choose one of the 22*4 cell to throw at
         self.action_space = spaces.Discrete(N_CELLS)
@@ -97,11 +97,11 @@ class DartsEnv(gym.Env):
         # Register dart position
         self.board[cell_idx][mult_idx] += 1
 
+        score = self.compute_score(cell, multiplier, mult_idx)
+
         if verbose:
             print(
-                f'Mult idx: {mult_idx},Mult: {multiplier}, Cell idx: {cell_idx}, cell: {cell}')
-
-        score = self.compute_score(cell, multiplier, mult_idx)
+                f'Mult idx: {mult_idx},Mult: {multiplier}, Cell idx: {cell_idx}, cell: {cell} -> Score: {score}')
 
         # checks if the player has won (double/BULLSEYE is required to win)
         if self.players_score[0] - score == 0 and (multiplier == 2 or score == BULLSEYE):
