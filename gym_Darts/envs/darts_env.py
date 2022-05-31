@@ -13,7 +13,10 @@ BOARD_ORDER = [20, 1, 18, 4, 13, 6, 10, 15,
 # 20 rows with multipliers 3x, 1x, 2x, 1x  + 2 bullseyes *4 for consistency
 DEFAULT_BOARD = np.array([[0, 0, 0, 0]]*20 + [[0]*4] + [[0]*4]).tolist()
 MULTIPLIERS = [2, 1, 3, 1]
-POSSIBLE_SCORES = [x*y for x in BOARD_ORDER for y in MULTIPLIERS]
+POSSIBLE_SCORES = [x*y for x in BOARD_ORDER[:-2]
+                   for y in MULTIPLIERS] + [SEMI_BULLSEYE, BULLSEYE]
+POSSIBLE_SCORES = list(dict.fromkeys(POSSIBLE_SCORES))
+POSSIBLE_SCORES.sort(reverse=True)
 N_CELLS = len(DEFAULT_BOARD) * 4
 
 # Penalties given per:
@@ -35,19 +38,26 @@ REWARD_WIN = 100
 # Game rules
 INITIAL_SCORE = 501
 SHOTS_PER_TURN = 3
+MAX_LEVEL = 5  # 5 is the best level of play, 0 the worst
+SHOTS_RANGE = 10  # Range of shots selected to calculate the best shot
 
 
 class DartsEnv(gym.Env):
 
-    def __init__(self, n_players=1, seed=None):
+    def __init__(self, n_players=1, player_level=None, seed=None):
 
         if seed is not None:
             random.seed(seed)
-
         # Stores thrown darts' positions
         self.players_score = [INITIAL_SCORE] * n_players
         self.board = create_board()
         self.shot_left = SHOTS_PER_TURN
+        if player_level is None:
+            self.players_level = [2 for _ in range(n_players)]
+        else:
+            assert n_players == len(
+                player_level), "Size of players and players levels should be the same"
+            self.players_level = player_level
 
         # Action: Choose one of the 22*4 cell to throw at
         self.action_space = spaces.Discrete(N_CELLS)
@@ -68,6 +78,7 @@ class DartsEnv(gym.Env):
             f'\nGame rules\n'
             f'---------------------------------------------\n'
             f'N players: {n_players},\n'
+            f'Player levels: {self.players_level},\n'
             f'Shots per turn: {self.shot_left},\n'
             f'Initial score: {INITIAL_SCORE},\n')
 
@@ -90,19 +101,25 @@ class DartsEnv(gym.Env):
             print(
                 f'Mult idx: {mult_idx},Mult: {multiplier}, Cell idx: {cell_idx}, cell: {cell}')
 
-        score = self.compute_score(
-            cell, multiplier, mult_idx)
-        self.players_score[0] -= score if self.players_score[0] - \
-            score > 0 else 0
+        score = self.compute_score(cell, multiplier, mult_idx)
 
-        self.shot_left -= 1
+        # checks if the player has won (double/BULLSEYE is required to win)
+        if self.players_score[0] - score == 0 and (multiplier == 2 or score == BULLSEYE):
+            self.players_score[0] = 0
+
+        # Busting ends the turn
+        if(self.players_score[0] - score > 1):
+            self.players_score[0] -= score
+            self.shot_left -= 1
+        else:
+            self.shot_left = 0
+
         # Reset the board at the end of the players turn
         if self.shot_left <= 0:
             self.board = create_board()
             self.shot_left = SHOTS_PER_TURN
-
-        # Opponents turn
-        self.opponents_turn()
+            # Opponents turn
+            self.opponents_turn()
 
         observation = (self.board, self.players_score, self.shot_left)
         reward = self.compute_reward(score)
@@ -183,11 +200,11 @@ class DartsEnv(gym.Env):
     def compute_reward(self, score):
         reward = 0
         player_score = self.players_score[0]
-        if player_score - score < 0:
-            reward = REWARD_OVERFLOW
-            return reward
         if player_score == 0:
             reward = REWARD_WIN
+            return reward
+        if player_score - score < 2:
+            reward = REWARD_OVERFLOW
             return reward
         if len(self.players_score) > 1:
             for opp_score in self.players_score[1:]:
@@ -197,15 +214,58 @@ class DartsEnv(gym.Env):
 
         return reward
 
-    # Opponenent make random shots
-    # TODO: Level system (better opponent = better shot)
+    # Opponenents make the best shot for them, based on their level
     def opponents_turn(self):
         if len(self.players_score) == 0:
             return
         for opp, _ in enumerate(self.players_score[1:]):
-            score = random.choice(POSSIBLE_SCORES)
-            self.players_score[opp+1] -= score if self.players_score[opp+1] - \
-                score > 0 else 0
+            for i in range(3):
+                idx = opp + 1
+                score = self.find_best_shot(self.players_level[idx], idx, i)
+
+                self.players_score[idx] -= score if self.players_score[idx] - \
+                    score > 1 else 0
+                # checks if the player has won (double/BULLSEYE is required to win)
+                if self.players_score[idx] - score == 0:
+                    self.players_score[idx] = 0
+                    # End the game
+                    return
+                # Busting ends the turn
+                if(self.players_score[idx] - score > 1):
+                    self.players_score[idx] -= score
+                else:
+                    break
+
+    def find_best_shot(self, level, player_idx, shots):
+        # find the best possible shot. If the player is in range of winning then the best shot is the one making them win, otherwise we assume the best shot is
+        # the one reducing their score by the largest value
+        all_scores = POSSIBLE_SCORES
+        if (self.is_winning_range(player_idx)):
+            # Winning shot should be a double
+            if self.players_score[player_idx] % 2 == 0:
+                cell_to_win = self.players_score[player_idx] / 2
+                cell_to_win = BULLSEYE if cell_to_win > 20 else cell_to_win
+                score = self.compute_score(
+                    cell_to_win, 2, MULTIPLIERS.index(2))
+                return score
+            else:
+                # if the player cannot end on a double, it should aim for an even score to end on the next
+                all_scores = [x for x in all_scores if x <
+                              self.players_score[player_idx] and x % 2 == 1]
+
+        # Opponents also have the possibility to miss
+        miss = shots * DART_PENALTY
+        if random.random() < miss:
+            return 0
+        limit = (1 + MAX_LEVEL - level) * SHOTS_RANGE
+        shot = random.choice(all_scores[:limit]) if limit < len(
+            all_scores) + 1 else random.choice(all_scores + [0])
+        return shot
+
+    def is_winning_range(self, player_idx):
+        score = self.players_score[player_idx]
+        # 50 is the maximal value from one a player can win (requirements: end on a double, 50 = BULLSEYE = 2*SEMI_BULLSEYE)
+        return score <= 40 or score == 50
 
 
 def action_to_cell(action):
