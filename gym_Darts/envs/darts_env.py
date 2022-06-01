@@ -22,12 +22,15 @@ N_CELLS = len(DEFAULT_BOARD) * 4
 # Penalties given per:
 #   - dart already in the cell
 #   - harder shot (3 or 2x and bullseye)
+#   - level of the player
 # size of surfaces : https://pages.cs.wisc.edu/~bolo/darts/dartboard.html
 DART_PENALTY = 0.01
 DOUBLE_PENALTY = 0.05
 TRIPLE_PENALTY = 0.075
 BULLSEYE_PENALTY = 0.15
 SEMI_BULLSEYE_PENALTY = 0.025
+
+LEVEL_PENALTY = 0.01
 
 # REWARDS
 REWARD_OVERFLOW = -10
@@ -97,7 +100,8 @@ class DartsEnv(gym.Env):
         # Register dart position
         self.board[cell_idx][mult_idx] += 1
 
-        score = self.compute_score(cell, multiplier, mult_idx)
+        score = self.compute_score(
+            cell, multiplier, mult_idx, self.players_level[0])
 
         if verbose:
             print(
@@ -131,17 +135,22 @@ class DartsEnv(gym.Env):
         # Reset the state of the environment to an initial state
         self.board = create_board()
         self.players_score = [INITIAL_SCORE for _ in self.players_score]
+        self.shot_left = SHOTS_PER_TURN
+
+        return (self.board, self.players_score, self.shot_left)
 
     def render(self, mode='human', close=False):
         # Render the environment to the screen
         print('Render')
 
-    def compute_score(self, cell, multiplier, mult_idx, verbose=False):
+    def compute_score(self, cell, multiplier, mult_idx, level, verbose=False):
         score = 0
         old_cell = cell
         old_mult = multiplier
         # Each shot has a probability to fail
         miss = random.random()
+        # Increase the possibility of failure based on the skill
+        miss -= (MAX_LEVEL - level) * LEVEL_PENALTY
         direction = random.randint(0, 3)
         # hitting an already thown dart -> the dart does not stick to the board
         if cell == BULLSEYE or cell == SEMI_BULLSEYE:
@@ -246,7 +255,7 @@ class DartsEnv(gym.Env):
                 cell_to_win = self.players_score[player_idx] / 2
                 cell_to_win = BULLSEYE if cell_to_win > 20 else cell_to_win
                 score = self.compute_score(
-                    cell_to_win, 2, MULTIPLIERS.index(2))
+                    cell_to_win, 2, MULTIPLIERS.index(2), self.players_level[player_idx])
                 return score
             else:
                 # if the player cannot end on a double, it should aim for an even score to end on the next
