@@ -1,4 +1,5 @@
 import random
+from tabnanny import verbose
 import gym
 from gym import spaces
 import numpy as np
@@ -42,7 +43,7 @@ REWARD_WIN = 100
 INITIAL_SCORE = 501
 SHOTS_PER_TURN = 3
 MAX_LEVEL = 5  # 5 is the best level of play, 0 the worst
-SHOTS_RANGE = 1  # Range of shots selected to calculate the best shot
+SHOTS_RANGE = 2  # Range of shots selected to calculate the best shot
 
 
 class DartsEnv(gym.Env):
@@ -89,6 +90,8 @@ class DartsEnv(gym.Env):
         # Execute one time step within the environment
         assert action in self.action_space, "Action not in action space"
 
+        info = {}
+        info['win'] = False
         if verbose:
             print('Action :', action)
 
@@ -114,6 +117,7 @@ class DartsEnv(gym.Env):
         # checks if the player has won (double/BULLSEYE is required to win)
         if self.players_score[0] - score == 0 and (multiplier == 2 or score == BULLSEYE):
             self.players_score[0] = 0
+            info['win'] = True
 
         # Busting ends the turn
         if(self.players_score[0] - score > 1):
@@ -132,15 +136,45 @@ class DartsEnv(gym.Env):
         observation = (self.board, self.players_score, self.shot_left)
         reward = self.compute_reward(score)
         done = any([score == 0 for score in self.players_score])
-        info = {}
         info['diff_with_best'] = best_score - score
         return observation, reward, done, info
 
-    def reset(self):
+    def reset(self, n_players=1, players_level=None, seed=None, verbose=False):
         # Reset the state of the environment to an initial state
         self.board = create_board()
         self.players_score = [INITIAL_SCORE for _ in self.players_score]
         self.shot_left = SHOTS_PER_TURN
+        if players_level is None:
+            self.players_level = [2 for _ in range(n_players)]
+        else:
+            assert n_players == len(
+                players_level), "Size of players and players levels should be the same"
+            self.players_level = players_level
+
+        # Action: Choose one of the 22*4 cell to throw at
+        self.action_space = spaces.Discrete(N_CELLS)
+
+        # Observation: A board of 20 numbers with 4 multipliers values and 2 bullseyes
+        spaces_layers = {
+            'board': spaces.Box(low=0, high=3, shape=(22, 4)),
+            'scores': spaces.Box(low=0, high=INITIAL_SCORE, shape=(n_players,)),
+            'shots': spaces.Discrete(SHOTS_PER_TURN)
+        }
+        self.observation_space = spaces.Dict(spaces_layers)
+
+        if verbose:
+            print(
+                f'Structure\n'
+                f'---------------------------------------------\n'
+                f'N cells: {N_CELLS},\n'
+                f'Action space: {self.action_space},\n'
+                f'Observation space: {self.observation_space}\n'
+                f'\nGame rules\n'
+                f'---------------------------------------------\n'
+                f'N players: {n_players},\n'
+                f'Player levels: {self.players_level},\n'
+                f'Shots per turn: {self.shot_left},\n'
+                f'Initial score: {INITIAL_SCORE},\n')
 
         return (self.board, self.players_score, self.shot_left)
 
