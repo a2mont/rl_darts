@@ -42,7 +42,7 @@ REWARD_WIN = 100
 INITIAL_SCORE = 501
 SHOTS_PER_TURN = 3
 MAX_LEVEL = 5  # 5 is the best level of play, 0 the worst
-SHOTS_RANGE = 10  # Range of shots selected to calculate the best shot
+SHOTS_RANGE = 1  # Range of shots selected to calculate the best shot
 
 
 class DartsEnv(gym.Env):
@@ -100,6 +100,10 @@ class DartsEnv(gym.Env):
         # Register dart position
         self.board[cell_idx][mult_idx] += 1
 
+        # For comparison
+        best_score = self.find_best_shot(
+            self.players_level[0], 0, self.shot_left)
+
         score = self.compute_score(
             cell, multiplier, mult_idx, self.players_level[0])
 
@@ -129,6 +133,7 @@ class DartsEnv(gym.Env):
         reward = self.compute_reward(score)
         done = any([score == 0 for score in self.players_score])
         info = {}
+        info['diff_with_best'] = best_score - score
         return observation, reward, done, info
 
     def reset(self):
