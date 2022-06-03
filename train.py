@@ -48,7 +48,7 @@ def observation_to_state(observation):
 
 def state_size():
     # Worst case two darts in 82 and max score
-    return (20*4+2)**2 * tools.INITIAL_SCORE
+    return (20*4+2)**2 * 102
 
 
 def loop(T, alpha, epsilon, gamma, decay, n_experiments, algs, environments, n_players=1, players_level=None, verbose=False, plot=False):
@@ -56,6 +56,7 @@ def loop(T, alpha, epsilon, gamma, decay, n_experiments, algs, environments, n_p
     optimal = None
     rewards = {}
     differences = {}
+    win_ratio = {}
     alg_index = 0
     env = environments[0]
     total_reward = np.zeros([len(algs)])
@@ -66,8 +67,11 @@ def loop(T, alpha, epsilon, gamma, decay, n_experiments, algs, environments, n_p
                   discount=gamma, alpha=alpha, epsilon=epsilon, decay=decay)
         rewards[type(alg).__name__] = []
         differences[type(alg).__name__] = []
+        win_ratio[type(alg).__name__] = []
+        wins = 0
         for experiment in range(n_experiments):
-            observation = env.reset()
+            observation = env.reset(
+                n_players=n_players, players_level=players_level, opponent_mode='random')
             state = observation_to_state(observation)
             alg.reset(state)
             run_reward = 0
@@ -82,7 +86,10 @@ def loop(T, alpha, epsilon, gamma, decay, n_experiments, algs, environments, n_p
                 differences[type(alg).__name__].append(info['diff_with_best'])
                 if done:
                     #print("Episode finished after {} timesteps".format(t+1))
+                    if info['win']:
+                        wins = wins + 1
                     break
+            win_ratio[type(alg).__name__].append(wins/(experiment+1))
             rewards[type(alg).__name__].append(run_reward)
             total_reward[alg_index] += run_reward
             alg.update_epsilon()
@@ -107,11 +114,11 @@ def loop(T, alpha, epsilon, gamma, decay, n_experiments, algs, environments, n_p
             axs[idx].legend()
         fig.savefig(f'{LOGS}algos_{n_players}players')
 
-    return max_reward, optimal, differences
+    return max_reward, optimal, differences, win_ratio
 
 
 """ 
-Run the experiment procedure, if provided with no parameters field :
+Experiment procedures: if provided with no parameters field :
     1. find optimal values for alpha, epsilon, gamma
     2. plot the result of the experiment with optimal parameters
 If provided with parameters (alpha, epsilon, gamma), run only step 2
@@ -123,15 +130,13 @@ def player_experiment(T, decay, n_experiments, algorithms, envs, n_players, play
     max_reward = [-np.inf, -np.inf, -np.inf, -np.inf]
     optimal = [None, None, None, None]
     if parameters is None:
-        print(f'Experiment for ')
         alphas = [0.1 * n for n in range(1, 10)]
         epsilons = [0.1 * n for n in range(1, 10)]
         gammas = [0.1 * n for n in range(1, 10)]
         print('Finding alpha...')
         for alpha in alphas:
-            # finding alpha with default epsilon=0.3
-            reward, params, _ = loop(
-                T, alpha, epsilons[2], gammas[8], decay, n_experiments, algorithms, envs)
+            reward, params, _, _ = loop(
+                T, alpha, epsilons[2], gammas[8], decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level)
             if reward > max_reward[0]:
                 max_reward[0] = reward
                 optimal[0] = params
@@ -147,8 +152,8 @@ def player_experiment(T, decay, n_experiments, algorithms, envs, n_players, play
         print('Finding epsilon...')
         for epsilon in epsilons:
             # finding alpha with default alpha=0.1
-            reward, params, _ = loop(
-                T, alphas[0], epsilon, gammas[8], decay, n_experiments, algorithms, envs)
+            reward, params, _, _ = loop(
+                T, alphas[0], epsilon, gammas[8], decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level)
             if reward > max_reward[1]:
                 max_reward[1] = reward
                 optimal[1] = params
@@ -169,8 +174,8 @@ def player_experiment(T, decay, n_experiments, algorithms, envs, n_players, play
         print('Finding gamma...')
         for gamma in gammas:
             # finding alpha with default alpha=0.1
-            reward, params, _ = loop(
-                T, alphas[0], epsilons[2], gamma,  decay, n_experiments, algorithms, envs)
+            reward, params, _, _ = loop(
+                T, alphas[0], epsilons[2], gamma,  decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level)
             if reward > max_reward[2]:
                 max_reward[2] = reward
                 optimal[2] = params
@@ -187,8 +192,8 @@ def player_experiment(T, decay, n_experiments, algorithms, envs, n_players, play
                 f'Max reward: {max_reward[2]}, with parameters: {optimal[2]}, while searching gamma with optimal parameters\n-------------------------------')
     else:
         best_alpha, best_epsilon, best_gamma = parameters
-    reward, params, _ = loop(T, best_alpha, best_epsilon,
-                             best_gamma,  decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level, plot=True)
+    reward, params, _, _ = loop(T, best_alpha, best_epsilon,
+                                best_gamma,  decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level, plot=True)
     if reward > max_reward[3]:
         max_reward[3] = reward
         optimal[3] = params
@@ -211,9 +216,11 @@ def optimal_score_experiment(T, decay, n_experiments, algorithms, envs, n_player
         alpha, epsilon, gamma = (0.1, 0.1, 0.9)
     else:
         alpha, epsilon, gamma, _ = parameters
-    _, _, diffs = loop(T, alpha, epsilon,
-                       gamma,  decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level)
+    _, _, diffs, _ = loop(T, alpha, epsilon,
+                          gamma,  decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level)
     fig, axs = plt.subplots(len(diffs.keys()))
+    fig.suptitle(
+        f'Distances between shot played and theoretical best shot')
     for idx, r in enumerate(diffs):
         print(
             f'Average distance to best shot with {r}: {sum(diffs[r])/len(diffs[r])}')
@@ -222,7 +229,23 @@ def optimal_score_experiment(T, decay, n_experiments, algorithms, envs, n_player
     fig.savefig(f'{LOGS}algos_diffs')
 
 
-n_experiments = 400
+def wins_experiment(T, decay, n_experiments, algorithms, envs, n_players, players_level, parameters=None):
+    if parameters is None:
+        alpha, epsilon, gamma = (0.1, 0.1, 0.9)
+    else:
+        alpha, epsilon, gamma, _ = parameters
+    _, _, _, wins = loop(T, alpha, epsilon,
+                         gamma,  decay, n_experiments, algorithms, envs, n_players=n_players, players_level=players_level)
+    fig, axs = plt.subplots(len(wins.keys()))
+    fig.suptitle(
+        f'Win percentage with {n_players} (levels: {players_level})')
+    for idx, r in enumerate(wins):
+        axs[idx].plot(range(len(wins[r])), wins[r], label=r)
+        axs[idx].legend()
+    fig.savefig(f'{LOGS}algos_wins_{n_players}players')
+
+
+n_experiments = 1000
 T = 100
 max_players = 6
 environments = []
@@ -231,19 +254,27 @@ initial_epsilon = 1
 min_epsilon = 0.1
 opt_decay = (min_epsilon / initial_epsilon)**(1/n_experiments)
 
-environments.append(gym.make('Darts-v0', n_players=1, players_level=[5]))
+environments.append(gym.make('Darts-v0'))
 
 
 algs = []
 algs.append(sarsa.Sarsa)
 algs.append(qlearning.QLearning)
 
+opt_params = []
 # Experiment on the number of players and their level
 for n_players in range(1, max_players):
-    players_level = [random.randint(0, 5) for _ in range(n_players)]
+    players_level = [5] + [0 for _ in range(n_players-1)]
     print(n_players, players_level)
     _, params = player_experiment(
         T, opt_decay, n_experiments, algs, environments, n_players, players_level, to_file=True)
+    opt_params.append(params)
 
 optimal_score_experiment(T, opt_decay, n_experiments,
-                         algs, environments, 1, [5], parameters=params[-1])
+                         algs, environments, 1, [5], parameters=opt_params[0][-1])
+
+for n_players in range(2, max_players):
+    players_level = [5] + [0 for _ in range(n_players-1)]
+    print(n_players, players_level)
+    wins_experiment(T, opt_decay, n_experiments,
+                    algs, environments, n_players, players_level, parameters=opt_params[n_players-1][-1])
