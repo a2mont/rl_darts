@@ -16,5 +16,5 @@ To use the environment, import the build from gym
 import gym
 import gym_Darts
 
-env = gym.make('Darts-v0', n_players=#amount_of_players)
+env = gym.make('Darts-v0')
 ```

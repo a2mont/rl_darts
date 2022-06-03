@@ -43,12 +43,12 @@ REWARD_WIN = 100
 INITIAL_SCORE = 501
 SHOTS_PER_TURN = 3
 MAX_LEVEL = 5  # 5 is the best level of play, 0 the worst
-SHOTS_RANGE = 2  # Range of shots selected to calculate the best shot
+SHOTS_RANGE = 5  # Range of shots selected to calculate the best shot
 
 
 class DartsEnv(gym.Env):
 
-    def __init__(self, n_players=1, players_level=None, seed=None):
+    def __init__(self, n_players=1, players_level=None, opponent_mode='best', seed=None):
 
         if seed is not None:
             random.seed(seed)
@@ -56,6 +56,7 @@ class DartsEnv(gym.Env):
         self.players_score = [INITIAL_SCORE] * n_players
         self.board = create_board()
         self.shot_left = SHOTS_PER_TURN
+        self.oppponent_mode = opponent_mode
         if players_level is None:
             self.players_level = [2 for _ in range(n_players)]
         else:
@@ -139,11 +140,12 @@ class DartsEnv(gym.Env):
         info['diff_with_best'] = best_score - score
         return observation, reward, done, info
 
-    def reset(self, n_players=1, players_level=None, seed=None, verbose=False):
+    def reset(self, n_players=1, players_level=None, seed=None, opponent_mode='best', verbose=False):
         # Reset the state of the environment to an initial state
         self.board = create_board()
-        self.players_score = [INITIAL_SCORE for _ in self.players_score]
+        self.players_score = [INITIAL_SCORE]*n_players
         self.shot_left = SHOTS_PER_TURN
+        self.oppponent_mode = opponent_mode
         if players_level is None:
             self.players_level = [2 for _ in range(n_players)]
         else:
@@ -225,7 +227,7 @@ class DartsEnv(gym.Env):
                             f'Missed shot: Multpiplier {old_mult} -> {multiplier}')
                 else:
                     cell = get_neighbours_cells(
-                        cell)[0] if direction == 0 else get_neighbours_cells(cell)[0]
+                        cell)[0] if direction == 0 else get_neighbours_cells(cell)[1]
                     if verbose:
                         print(f'Missed shot: Cell {old_cell} -> {cell}')
 
@@ -238,7 +240,7 @@ class DartsEnv(gym.Env):
                             f'Missed shot: Multpiplier {old_mult} -> {multiplier}')
                 else:
                     cell = get_neighbours_cells(
-                        cell)[0] if direction == 0 else get_neighbours_cells(cell)[0]
+                        cell)[0] if direction == 0 else get_neighbours_cells(cell)[1]
                     if verbose:
                         print(f'Missed shot: Cell {old_cell} -> {cell}')
 
@@ -269,8 +271,11 @@ class DartsEnv(gym.Env):
         for opp, _ in enumerate(self.players_score[1:]):
             for i in range(3):
                 idx = opp + 1
-                score = self.find_best_shot(self.players_level[idx], idx, i)
-
+                if self.oppponent_mode == 'best':
+                    score = self.find_best_shot(
+                        self.players_level[idx], idx, i)
+                else:
+                    score = random.choice(POSSIBLE_SCORES)
                 self.players_score[idx] -= score if self.players_score[idx] - \
                     score > 1 else 0
                 # checks if the player has won (double/BULLSEYE is required to win)
